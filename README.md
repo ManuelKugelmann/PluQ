@@ -1,68 +1,97 @@
 # PluQ - Inter-Process Communication System
 
-Extracted from [PluQuake/Ironwail](https://github.com/ManuelKugelmann/PluQuake/tree/PluQuakespasm), PluQ is a high-performance, shared memory-based IPC system designed for game engine frontend/backend separation.
+Extracted from [PluQuake/Ironwail](https://github.com/ManuelKugelmann/PluQuake/tree/PluQuakespasm), PluQ provides **two IPC implementations** for game engine frontend/backend separation:
+
+1. **Shared Memory** - Ultra-low latency, local only
+2. **nng + FlatBuffers** - Network-capable, flexible messaging
 
 ## Project Structure
 
 ```
 PluQ/
-├── c/                              # C implementation (original)
-│   ├── pluq.h                      # Core header with data structures
-│   ├── pluq.c                      # Core IPC implementation (~794 lines)
-│   ├── main_pluq_frontend.c        # Frontend entry point
-│   ├── host_pluq_frontend.c        # Frontend host initialization
-│   ├── stubs_pluq_frontend.c       # Frontend stub functions
-│   ├── Makefile.pluq_frontend      # Build configuration
-│   └── PLUQ_FRONTEND_README.md     # Original documentation
+├── c/                                    # C implementations
+│   ├── pluq.h                            # Shared memory API
+│   ├── pluq.c                            # Shared memory implementation (~794 lines)
+│   ├── pluq_nng.h                        # nng + FlatBuffers API
+│   ├── pluq_nng.c                        # nng implementation
+│   ├── pluq.fbs                          # FlatBuffers schema
+│   ├── CMakeLists.txt                    # Build configuration
+│   ├── build.sh                          # Build script
+│   ├── PLUQ_FRONTEND_README.md           # Shared memory docs
+│   ├── PLUQ_HYBRID_RESOURCES.md          # Hybrid resource loading
+│   ├── README.md                         # C implementation guide
+│   └── (Quake integration files)         # Frontend entry points, stubs, etc.
 │
-├── csharp/                         # C# implementation (compatible)
-│   ├── PluQStructures.cs           # Data structures (binary-compatible)
-│   ├── PluQ.cs                     # Core IPC implementation
-│   ├── PluQBackendExample.cs       # Backend example
-│   ├── PluQFrontendExample.cs      # Frontend example
-│   ├── PluQ.csproj                 # Library project
-│   ├── PluQBackendExample.csproj   # Backend example project
-│   ├── PluQFrontendExample.csproj  # Frontend example project
-│   └── README.md                   # C# documentation & ZeroMQ comparison
+├── csharp/                               # C# implementations
+│   ├── PluQStructures.cs                 # Shared memory data structures
+│   ├── PluQ.cs                           # Shared memory implementation
+│   ├── PluQNNG.cs                        # nng + FlatBuffers implementation
+│   ├── PluQ.csproj                       # Shared memory library
+│   ├── PluQNNG.csproj                    # nng library (with dependencies)
+│   ├── PluQBackendExample.cs             # Shared memory backend example
+│   ├── PluQFrontendExample.cs            # Shared memory frontend example
+│   ├── generate_flatbuffers.sh           # FlatBuffers code generation
+│   ├── FLATBUFFERS.md                    # FlatBuffers guide
+│   └── README.md                         # C# documentation & comparisons
 │
-└── README.md                       # This file
+└── README.md                             # This file
 ```
 
 ## What is PluQ?
 
-PluQ is a **shared memory-based IPC system** that enables:
+PluQ is an **IPC system** for game engine frontend/backend separation:
 
 - **Backend Process**: Runs game simulation (physics, AI, server logic)
 - **Frontend Process(es)**: Handles rendering, input, and audio
 - **Bidirectional Communication**: Backend broadcasts state, frontend sends input
-- **Ultra-Low Latency**: ~1-10 microseconds (local machine)
-- **Zero-Copy Transfer**: Direct memory access, no serialization
 
-## IPC Mechanism
+## Two IPC Implementations
 
-### What PluQ Uses
+### 1. Shared Memory (Ultra-Low Latency)
 
-PluQ uses **platform-specific shared memory**:
-
+**Technology:**
 - **Windows**: `CreateFileMapping` / `MapViewOfFile` (Win32 API)
 - **Linux/Unix**: `shm_open` + `mmap` (POSIX)
 - **C#**: `MemoryMappedFile` (.NET API)
 
-### Is it Versatile Like ZeroMQ?
+**Characteristics:**
+- **Latency**: ~1-10 microseconds
+- **Scope**: Local machine only
+- **Serialization**: None (zero-copy)
+- **Memory**: ~24 MB shared region
 
-**No.** PluQ is purpose-built for a specific use case (local game engine IPC), while ZeroMQ is a general-purpose messaging library.
+### 2. nng + FlatBuffers (Network-Capable)
 
-#### Quick Comparison
+**Technology:**
+- **Transport**: nng (IPC, TCP, WebSocket)
+- **Serialization**: FlatBuffers (efficient binary)
+- **Patterns**: PUB/SUB, REQ/REP, PUSH/PULL
 
-| Feature | PluQ | ZeroMQ |
-|---------|------|---------|
-| **Transport** | Shared memory (local only) | TCP, IPC, multicast, etc. |
-| **Latency** | Ultra-low (~1-10 μs) | Low (~50-500 μs) |
-| **Network** | No | Yes |
-| **Patterns** | State broadcast + input | Pub/Sub, Req/Rep, Push/Pull, etc. |
-| **Use Case** | Local game IPC | Distributed systems |
+**Characteristics:**
+- **Latency**: ~50-500 μs (IPC), 1-10 ms (TCP LAN)
+- **Scope**: Local + network
+- **Serialization**: FlatBuffers (low overhead)
+- **Channels**: 3 separate (Resources, Gameplay, Input)
 
-See [csharp/README.md](csharp/README.md) for detailed comparison.
+## Comparison Table
+
+| Feature | Shared Memory | nng + FlatBuffers | ZeroMQ |
+|---------|--------------|-------------------|---------|
+| **Transport** | Shared memory | IPC/TCP/WebSocket | TCP/IPC/multicast |
+| **Latency** | ~1-10 μs | ~50-500 μs (IPC) | ~50-500 μs |
+| **Network** | No | Yes | Yes |
+| **Serialization** | None (raw structs) | FlatBuffers | Manual |
+| **Patterns** | State overwrite | Pub/Sub, Req/Rep, Push/Pull | Pub/Sub, Req/Rep, etc. |
+| **Resource Loading** | Fixed buffer | Hybrid (local+remote) | Manual |
+| **Dependencies** | OS only | libnng, flatcc | libzmq |
+| **Use Case** | Local game IPC | Distributed, web, mobile | General distributed systems |
+
+**Which to use?**
+- **Shared Memory**: Local only, need ultra-low latency (<10 μs)
+- **nng + FlatBuffers**: Network support, web/mobile frontends, hybrid resource loading
+- **ZeroMQ**: General-purpose distributed messaging, many language bindings
+
+See [c/README.md](c/README.md) and [csharp/README.md](csharp/README.md) for detailed comparisons.
 
 ## Key Features
 
