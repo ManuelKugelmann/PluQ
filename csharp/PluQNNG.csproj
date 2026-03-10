@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared memory version -->
+    <Compile Include="PluQStructures.cs" />
+    <Compile Include="PluQ.cs" />
+
+    <!-- nng + FlatBuffers version -->
+    <Compile Include="PluQNNG.cs" />
+
+    <!-- FlatBuffers generated code (run generate_flatbuffers.sh first) -->
+    <Compile Include="Generated/PluQ/**/*.cs" Condition="Exists('Generated/PluQ')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.FlatBuffers" Version="24.3.25" />
+    <PackageReference Include="nng.NETCore" Version="1.4.2" />
+    <PackageReference Include="Subor.nng.NETCore" Version="1.4.2" />
+  </ItemGroup>
+
+</Project>
